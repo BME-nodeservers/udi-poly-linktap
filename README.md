@@ -1,12 +1,7 @@
-# LinkTap NodeServer
+# LinkTap Node Server
 
-#### Installation
-
-Install through the Polyglot store procedure
-
-#### Requirements
-
-Polyglot running on rPi, Polisy or Polyglot Cloud
+The LinkTap node server will interface [LinkTap](https://www.link-tap.com) watering 
+solutions to the Universal Devices Inc. eisy and Polisy controllers.
 
 ## Configuration
  - Requires LinkTap user account

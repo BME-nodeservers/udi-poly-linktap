@@ -1,13 +1,11 @@
 #!/usr/bin/env python3
 
 try:
-    import polyinterface
-except ImportError:
-    import pgc_interface as polyinterface
+import udi_interface
 import sys
 import requests
 
-LOGGER = polyinterface.LOGGER
+LOGGER = udi_interface.LOGGER
 
 class LinkTap:
     def __init__(self, username, apiKey):

@@ -4,34 +4,26 @@ import sys
 import linktap
 import time
 import logging
+import udi_interface
 
-try:
-    import polyinterface
-    CLOUD = False
-except ImportError:
-    import pgc_interface as polyinterface
-    CLOUD = True
-
-
-LOGGER = polyinterface.LOGGER
+LOGGER = udi_interface.LOGGER
 logging.getLogger('urllib3').setLevel(logging.INFO)
 
 
-class Controller(polyinterface.Controller):
+# TODO: make this an object, not a node!!
+class Controller(object):
     def __init__(self, polyglot):
-        super(Controller, self).__init__(polyglot)
         self.name = 'LinkTap Controller'
-        # self.poly.onConfig(self.process_config)
         self.username = ''
         self.apiKey = ''
         self.data = None
         self.ready = False
         self.retry_count = 1
 
-    def start(self):
-        LOGGER.info('Started LinkTap NodeServer')
-        if self.check_params():
-            self.discover()
+        polyglot.subscribe(polyglot.DISCOVER, self.discover)
+        polyglot.subscribe(polyglot.CUSTOMPARAMS, self.parameterHandler)
+
+        polyglot.ready()
 
     def get_link_tap_devices(self):
         lt = linktap.LinkTap(self.username, self.apiKey)
@@ -51,40 +43,7 @@ class Controller(polyinterface.Controller):
             self.ready = True
             return True
 
-    def shortPoll(self):
-        # Update Watering Status
-        if self.ready:
-            # LOGGER.info("Updating Watering Status")
-            for node in self.nodes:
-                if self.nodes[node].address != self.address:
-                    for gw in self.data['devices']:
-                        for tl in gw['taplinker']:
-                            if tl['taplinkerId'][0:8].lower() == self.nodes[node].address:
-                                if tl['status'] == 'Connected':
-                                    link_tap = linktap.LinkTap(self.username, self.apiKey)
-                                    watering_status = link_tap.get_watering_status(tl['taplinkerId'])
-                                    # print(watering_status)
-                                    try:
-                                        if watering_status['status'] is not None:
-                                            if watering_status['status']['onDuration']:
-                                                self.nodes[node].setDriver('GV1', 1)
-                                                self.nodes[node].setDriver('GV2', watering_status['status']['onDuration'])
-                                            if watering_status['status']['total']:
-                                                self.nodes[node].setDriver('GV3', watering_status['status']['total'])
-                                                watering_total = int(watering_status['status']['total'])
-                                                watering_duration = int(watering_status['status']['onDuration'])
-                                                watering_elapsed = watering_total - watering_duration
-                                                self.nodes[node].setDriver('GV4', watering_elapsed)
-                                        else:
-                                            self.nodes[node].setDriver('GV1', 0)
-                                            self.nodes[node].setDriver('GV2', 0)
-                                            self.nodes[node].setDriver('GV3', 0)
-                                            self.nodes[node].setDriver('GV4', 0)
-                                    except TypeError:
-                                        pass
-        else:
-            pass
-
+    # TODO: : move into each node?
     def longPoll(self):
         if self.ready:
             if self.get_link_tap_devices():
@@ -94,42 +53,6 @@ class Controller(polyinterface.Controller):
         else:
             pass
 
-    def update(self):
-        if self.ready:
-            for node in self.nodes:
-                if self.nodes[node].address != self.address:
-                    for gw in self.data['devices']:
-                        if gw['gatewayId'][0:8].lower() == self.nodes[node].address:
-                            if gw['status'] == 'Connected':
-                                self.nodes[node].setDriver('ST', 1, force=False)
-                            else:
-                                self.nodes[node].setDriver('ST', 0, force=False)
-                        for tl in gw['taplinker']:
-                            if tl['taplinkerId'][0:8].lower() == self.nodes[node].address:
-                                if tl['status'] == 'Connected':
-                                    self.nodes[node].setDriver('ST', 1, force=False)
-                                else:
-                                    self.nodes[node].setDriver('ST', 0, force=False)
-                                self.nodes[node].setDriver('BATLVL', tl['batteryStatus'].strip('%'), force=False)
-                                # self.nodes[node].setDriver('GV0', tl['signal'].strip('%'), force=False)
-                                self.nodes[node].setDriver('GV0', tl['signal'], force=False)
-                                if tl['watering'] is not None:
-                                    self.nodes[node].setDriver('GV1', 1, force=False)
-                                    for key in tl['watering']:
-                                        if key == 'remaining':
-                                            self.nodes[node].setDriver('GV2', tl['watering'][key], force=False)
-                                        if key == 'total':
-                                            self.nodes[node].setDriver('GV3', tl['watering'][key], force=False)
-                                else:
-                                    self.nodes[node].setDriver('GV1', 0, force=False)
-                                    self.nodes[node].setDriver('GV2', 0, force=False)
-                                    self.nodes[node].setDriver('GV3', 0, force=False)
-
-    def query(self):
-        if self.ready:
-            self.check_params()
-            for node in self.nodes:
-                self.nodes[node].reportDrivers()
 
     def discover_retry(self):
         retry_count = str(self.retry_count)
@@ -139,19 +62,18 @@ class Controller(polyinterface.Controller):
             self.discover()
         else:
             LOGGER.info("discover_retry: Failed to start after 3000 retries.  Aborting")
-            polyglot.stop()
 
-    def discover(self, *args, **kwargs):
+    def discover(self):
         if self.get_link_tap_devices():
             for ctl in self.data['devices']:
                 gw_name = ctl['name']
                 gw_address = ctl['gatewayId'][0:8].lower()
-                self.addNode(GatewayNode(self, gw_address, gw_address, gw_name))
+                self.addNode(GatewayNode(self, gw_address, gw_address, gw_name, ctl))
                 time.sleep(2)
                 for tl in ctl['taplinker']:
                     tl_name = tl['taplinkerName']
                     tl_address = tl['taplinkerId'][0:8].lower()
-                    self.addNode(TapLinkNode(self, gw_address, tl_address, tl_name))
+                    self.addNode(TapLinkNode(self, gw_address, tl_address, tl_name, tl))
                     time.sleep(2)
             self.ready = True
             self.update()
@@ -161,83 +83,41 @@ class Controller(polyinterface.Controller):
             time.sleep(300)
             self.discover_retry()
 
-    def delete(self):
-        LOGGER.info('LinkTap Nodeserver:  Deleted')
+    # TODO: Use CUSTOMPARAMS event handler here
+    def parameterHandler(self, params):
+        valid_user = False
+        valid_key = False
 
-    def stop(self):
-        LOGGER.debug('NodeServer stopped.')
+        sel.poly.Notices.clear()
 
-    def process_config(self, config):
-        # this seems to get called twice for every change, why?
-        # What does config represent?
-        LOGGER.info("process_config: Enter config={}".format(config))
-        LOGGER.info("process_config: Exit")
-
-    def check_params(self):
-        default_username = "YourUserName"
-        default_api_key = "YourApiKey"
-
-        if 'username' in self.polyConfig['customParams']:
-            self.username = self.polyConfig['customParams']['username']
+        if 'username' in params and params['username'] != '':
+            self.username = params['username']
+            valid_user = True
         else:
-            self.username = default_username
-            LOGGER.error('check_params: user not defined in customParams, please add it.  '
-                         'Using {}'.format(self.username))
+            self.poly.Notices = 'Please set username'
 
-        if 'apiKey' in self.polyConfig['customParams']:
-            self.apiKey = self.polyConfig['customParams']['apiKey']
+        if 'apiKey' in params and params['apiKey'] != '':
+            self.apiKey = params['apiKey']
+            valid_key = True
         else:
-            self.apiKey = default_api_key
-            LOGGER.error('check_params: apiKey not defined in customParams, please add it.  '
-                         'Using {}'.format(self.apiKey))
+            self.poly.Notices = 'Please set api key'
 
-        self.addCustomParam({'username': self.username, 'apiKey': self.apiKey})
-        time.sleep(2)
-
-        if self.username == default_username or self.apiKey == default_api_key:
-            self.addNotice({'params_notice': 'Please set proper user and apiKey in '
-                            'configuration page, and restart this nodeserver'})
-            return False
-        else:
-            self.remove_notices_all()
-            return True
-
-    def remove_notice_test(self, command):
-        LOGGER.info('remove_notice_test: notices={}'.format(self.poly.config['notices']))
-        # Remove named notices
-        self.removeNotice('test')
-
-    def remove_notices_all(self):
-        LOGGER.info('remove_notices_all: notices={}'.format(self.poly.config['notices']))
-        # Remove all existing notices
-        self.removeNoticesAll()
-
-    def update_profile(self, command):
-        LOGGER.info('update_profile:')
-        st = self.poly.installprofile()
-        return st
-
-    id = 'controller'
-    commands = {
-        'QUERY': query,
-        'DISCOVER': discover,
-        'UPDATE_PROFILE': update_profile
-    }
-    drivers = [{'driver': 'ST', 'value': 1, 'uom': 2}]
+        if valid_user and valid_key:
+            self.discover()
 
 
-class GatewayNode(polyinterface.Node):
-    def __init__(self, controller, primary, address, name):
-        super(GatewayNode, self).__init__(controller, primary, address, name)
-        self.data = controller.data
+# This should be the parent node!
+class GatewayNode(udi_interface.Node):
+    def __init__(self, polyglot, primary, address, name, gw):
+        super(GatewayNode, self).__init__(polyglot, primary, address, name)
+        self.gw = gw
 
-    def start(self):
-        for gw in self.data['devices']:
-            if gw['gatewayId'][0:8].lower() == self.address:
-                if gw['status'] == 'Connected':
-                    self.setDriver('ST', 1)
-                else:
-                    self.setDriver('ST', 0)
+        polyglot.subscribe(polyglot.POLL, this.poll)
+        polyglot.subscribe(polyglot.START, this.update, address)
+
+    def poll(self, flag):
+        if flag == 'shortPoll':
+            this.update()
 
     def setOn(self, command):
         self.setDriver('ST', 1)
@@ -249,12 +129,10 @@ class GatewayNode(polyinterface.Node):
         self.reportDrivers()
 
     def update(self):
-        for gw in self.data['devices']:
-            if gw['gatewayId'][0:8].lower() == self.address:
-                if gw['status'] == 'Connected':
-                    self.setDriver('ST', 1)
-                else:
-                    self.setDriver('ST', 0)
+        if gw['status'] == 'Connected':
+            self.setDriver('ST', 1)
+        else:
+            self.setDriver('ST', 0)
 
 
     # "Hints See: https://github.com/UniversalDevicesInc/hints"
@@ -267,35 +145,41 @@ class GatewayNode(polyinterface.Node):
                 }
 
 
-class TapLinkNode(polyinterface.Node):
-    def __init__(self, controller, primary, address, name):
-        super(TapLinkNode, self).__init__(controller, primary, address, name)
-        self.data = controller.data
+# child of gateway node
+class TapLinkNode(udi_interface.Node):
+    def __init__(self, polyglot, primary, address, name, tl):
+        super(TapLinkNode, self).__init__(polyglot, primary, address, name)
+        self.tl = tl
         self.primary = primary
         self.dev_suffix = '004B1200'
 
-    def start(self):
-        for gw in self.data['devices']:
-            for tl in gw['taplinker']:
-                if tl['taplinkerId'][0:8].lower() == self.address:
-                    if tl['status'] == 'Connected':
-                        self.setDriver('ST', 1, force=True)
-                    else:
-                        self.setDriver('ST', 0, force=True)
-                    self.setDriver('BATLVL', tl['batteryStatus'].strip('%'), force=True)
-                    # self.setDriver('GV0', tl['signal'].strip('%'), force=True)
-                    self.setDriver('GV0', tl['signal'], force=True)
-                    if tl['watering'] is not None:
-                        self.setDriver('GV1', 1, force=True)
-                        for key in tl['watering']:
-                            if key == 'remaining':
-                                self.setDriver('GV2', tl['watering'][key], force=True)
-                            if key == 'total':
-                                self.setDriver('GV3', tl['watering'][key], force=True)
-                    else:
-                        self.setDriver('GV1', 0, force=True)
-                        self.setDriver('GV2', 0, force=True)
-                        self.setDriver('GV3', 0, force=True)
+        polyglot.subscribe(polyglot.POLL, this.poll)
+        polyglot.subscribe(polyglot.START, this.update, address)
+
+    def update(self):
+        if tl['status'] == 'Connected':
+            self.setDriver('ST', 1, force=True)
+        else:
+            self.setDriver('ST', 0, force=True)
+
+        self.setDriver('BATLVL', tl['batteryStatus'].strip('%'), force=True)
+        # self.setDriver('GV0', tl['signal'].strip('%'), force=True)
+        self.setDriver('GV0', tl['signal'], force=True)
+        if tl['watering'] is not None:
+            self.setDriver('GV1', 1, force=True)
+            for key in tl['watering']:
+                if key == 'remaining':
+                    self.setDriver('GV2', tl['watering'][key], force=True)
+                if key == 'total':
+                    self.setDriver('GV3', tl['watering'][key], force=True)
+        else:
+            self.setDriver('GV1', 0, force=True)
+            self.setDriver('GV2', 0, force=True)
+            self.setDriver('GV3', 0, force=True)
+
+    def poll(self, flag):
+        if flag == 'shortPoll':
+            self.update()
 
     def setOn(self, command):
         self.setDriver('ST', 1)
@@ -319,6 +203,7 @@ class TapLinkNode(polyinterface.Node):
         action = True
         eco = False
 
+        # TODO: review this, should we do linktap.LinkTap() only once on start?
         lt = linktap.LinkTap(self.controller.username, self.controller.apiKey)
         lt.activate_instant_mode(gateway, taplinker, action, duration, eco)
         self.setDriver('GV1', 1)
@@ -385,10 +270,16 @@ class TapLinkNode(polyinterface.Node):
 
 if __name__ == "__main__":
     try:
-        polyglot = polyinterface.Interface('Template')
-        polyglot.start()
-        control = Controller(polyglot)
-        control.runForever()
+        polyglot = udi_interface.Interface([])
+        polyglot.start('1.0.0')
+
+        Controller(polyglot)
+        LOGGER.info('Started LinkTap NodeServer')
+
+        polyglot.uploadProfile()
+        polyglot.setCustomParamsDoc()
+
+        polyglot.runForever()
     except (KeyboardInterrupt, SystemExit):
         polyglot.stop()
         sys.exit(0)
