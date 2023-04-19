@@ -69,12 +69,12 @@ class Controller(object):
             for ctl in self.data['devices']:
                 gw_name = ctl['name']
                 gw_address = ctl['gatewayId'][0:8].lower()
-                self.addNode(GatewayNode(self, gw_address, gw_address, gw_name, ctl))
+                self.poly.addNode(GatewayNode(self.poly, gw_address, gw_address, gw_name, ctl))
                 time.sleep(2)
                 for tl in ctl['taplinker']:
                     tl_name = tl['taplinkerName']
                     tl_address = tl['taplinkerId'][0:8].lower()
-                    self.addNode(TapLinkNode(self, gw_address, tl_address, tl_name, tl))
+                    self.poly.addNode(TapLinkNode(self.poly, gw_address, tl_address, tl_name, tl))
                     time.sleep(2)
             self.ready = True
             self.update()
@@ -272,7 +272,7 @@ class TapLinkNode(udi_interface.Node):
 if __name__ == "__main__":
     try:
         polyglot = udi_interface.Interface([])
-        polyglot.start('1.0.0')
+        polyglot.start('1.0.1')
 
         Controller(polyglot)
         LOGGER.info('Started LinkTap NodeServer')
