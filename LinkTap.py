@@ -77,7 +77,6 @@ class Controller(object):
                     self.poly.addNode(TapLinkNode(self.poly, gw_address, tl_address, tl_name, tl))
                     time.sleep(2)
             self.ready = True
-            self.update()
         else:
             LOGGER.info("Failed to get devices.  Will retry in 5 minutes")
             self.ready = False
