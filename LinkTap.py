@@ -130,7 +130,7 @@ class GatewayNode(udi_interface.Node):
         self.reportDrivers()
 
     def update(self):
-        if gw['status'] == 'Connected':
+        if self.gw['status'] == 'Connected':
             self.setDriver('ST', 1)
         else:
             self.setDriver('ST', 0)
@@ -158,21 +158,21 @@ class TapLinkNode(udi_interface.Node):
         polyglot.subscribe(polyglot.START, self.update, address)
 
     def update(self):
-        if tl['status'] == 'Connected':
+        if self.tl['status'] == 'Connected':
             self.setDriver('ST', 1, force=True)
         else:
             self.setDriver('ST', 0, force=True)
 
-        self.setDriver('BATLVL', tl['batteryStatus'].strip('%'), force=True)
-        # self.setDriver('GV0', tl['signal'].strip('%'), force=True)
-        self.setDriver('GV0', tl['signal'], force=True)
-        if tl['watering'] is not None:
+        self.setDriver('BATLVL', self.tl['batteryStatus'].strip('%'), force=True)
+        # self.setDriver('GV0', self.tl['signal'].strip('%'), force=True)
+        self.setDriver('GV0', self.tl['signal'], force=True)
+        if self.tl['watering'] is not None:
             self.setDriver('GV1', 1, force=True)
-            for key in tl['watering']:
+            for key in self.tl['watering']:
                 if key == 'remaining':
-                    self.setDriver('GV2', tl['watering'][key], force=True)
+                    self.setDriver('GV2', self.tl['watering'][key], force=True)
                 if key == 'total':
-                    self.setDriver('GV3', tl['watering'][key], force=True)
+                    self.setDriver('GV3', self.tl['watering'][key], force=True)
         else:
             self.setDriver('GV1', 0, force=True)
             self.setDriver('GV2', 0, force=True)
