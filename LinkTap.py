@@ -113,12 +113,12 @@ class GatewayNode(udi_interface.Node):
         super(GatewayNode, self).__init__(polyglot, primary, address, name)
         self.gw = gw
 
-        polyglot.subscribe(polyglot.POLL, this.poll)
-        polyglot.subscribe(polyglot.START, this.update, address)
+        polyglot.subscribe(polyglot.POLL, self.poll)
+        polyglot.subscribe(polyglot.START, self.update, address)
 
     def poll(self, flag):
         if flag == 'shortPoll':
-            this.update()
+            self.update()
 
     def setOn(self, command):
         self.setDriver('ST', 1)
@@ -154,8 +154,8 @@ class TapLinkNode(udi_interface.Node):
         self.primary = primary
         self.dev_suffix = '004B1200'
 
-        polyglot.subscribe(polyglot.POLL, this.poll)
-        polyglot.subscribe(polyglot.START, this.update, address)
+        polyglot.subscribe(polyglot.POLL, self.poll)
+        polyglot.subscribe(polyglot.START, self.update, address)
 
     def update(self):
         if tl['status'] == 'Connected':
