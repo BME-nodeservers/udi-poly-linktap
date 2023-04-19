@@ -19,6 +19,7 @@ class Controller(object):
         self.data = None
         self.ready = False
         self.retry_count = 1
+        self.poly = polyglot
 
         polyglot.subscribe(polyglot.DISCOVER, self.discover)
         polyglot.subscribe(polyglot.CUSTOMPARAMS, self.parameterHandler)
@@ -88,19 +89,19 @@ class Controller(object):
         valid_user = False
         valid_key = False
 
-        sel.poly.Notices.clear()
+        self.poly.Notices.clear()
 
         if 'username' in params and params['username'] != '':
             self.username = params['username']
             valid_user = True
         else:
-            self.poly.Notices = 'Please set username'
+            self.poly.Notices['user'] = 'Please set username'
 
         if 'apiKey' in params and params['apiKey'] != '':
             self.apiKey = params['apiKey']
             valid_key = True
         else:
-            self.poly.Notices = 'Please set api key'
+            self.poly.Notices['key'] = 'Please set api key'
 
         if valid_user and valid_key:
             self.discover()
@@ -276,7 +277,7 @@ if __name__ == "__main__":
         Controller(polyglot)
         LOGGER.info('Started LinkTap NodeServer')
 
-        polyglot.uploadProfile()
+        polyglot.updateProfile()
         polyglot.setCustomParamsDoc()
 
         polyglot.runForever()

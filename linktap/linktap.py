@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 
-try:
 import udi_interface
 import sys
 import requests
