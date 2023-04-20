@@ -20,14 +20,15 @@ class Controller(object):
         self.ready = False
         self.retry_count = 1
         self.poly = polyglot
+        self.lt = None
 
         polyglot.subscribe(polyglot.DISCOVER, self.discover)
         polyglot.subscribe(polyglot.CUSTOMPARAMS, self.parameterHandler)
+        polyglot.subscribe(polyglot.POLL, self.get_device_data)
 
         polyglot.ready()
 
-    def get_link_tap_devices(self):
-        lt = linktap.LinkTap(self.username, self.apiKey)
+    def get_link_tap_devices(self, lt):
         all_devices = lt.get_all_devices()
         if all_devices == 'error':
             LOGGER.info("get_link_tap_devices: The minimum interval of calling this API is 5 minutes.")
@@ -44,13 +45,29 @@ class Controller(object):
             self.ready = True
             return True
 
+    def get_device_data(self, flag):
+        if not self.ready:
+            return
+
+        if flag == 'shortPoll':
+            LOGGER.info('Calling get_link_tap_devices....')
+            if self.get_link_tap_devices(self.lt):
+                for ctl in self.data['devices']:
+                    gw_name = ctl['name']
+                    gw_address = ctl['gatewayId'][0:8].lower()
+                    self.poly.getNode(gw_address).update(ctl)
+                    for tl in ctl['taplinker']:
+                        tl_name = tl['taplinkerName']
+                        tl_address = tl['taplinkerId'][0:8].lower()
+                        self.poly.getNode(tl_address).update(tl)
+
     # TODO: : move into each node?
     def longPoll(self):
         if self.ready:
-            if self.get_link_tap_devices():
-                self.update()
-            else:
-                LOGGER.info("LinkTap Devices API returned None")
+            #if self.get_link_tap_devices():
+            #    self.update()
+            #else:
+            #    LOGGER.info("LinkTap Devices API returned None")
         else:
             pass
 
@@ -65,7 +82,8 @@ class Controller(object):
             LOGGER.info("discover_retry: Failed to start after 3000 retries.  Aborting")
 
     def discover(self):
-        if self.get_link_tap_devices():
+        self.lt = linktap.LinkTap(self.username, self.apiKey)
+        if self.get_link_tap_devices(self.lt):
             for ctl in self.data['devices']:
                 gw_name = ctl['name']
                 gw_address = ctl['gatewayId'][0:8].lower()
@@ -74,7 +92,7 @@ class Controller(object):
                 for tl in ctl['taplinker']:
                     tl_name = tl['taplinkerName']
                     tl_address = tl['taplinkerId'][0:8].lower()
-                    self.poly.addNode(TapLinkNode(self.poly, gw_address, tl_address, tl_name, tl))
+                    self.poly.addNode(TapLinkNode(self.poly, gw_address, tl_address, tl_name, tl, self.lt))
                     time.sleep(2)
             self.ready = True
         else:
@@ -112,12 +130,10 @@ class GatewayNode(udi_interface.Node):
         super(GatewayNode, self).__init__(polyglot, primary, address, name)
         self.gw = gw
 
-        polyglot.subscribe(polyglot.POLL, self.poll)
-        polyglot.subscribe(polyglot.START, self.update, address)
+        polyglot.subscribe(polyglot.START, self.start, address)
 
-    def poll(self, flag):
-        if flag == 'shortPoll':
-            self.update()
+    def start(self):
+        self.update(self.gw)
 
     def setOn(self, command):
         self.setDriver('ST', 1)
@@ -128,8 +144,8 @@ class GatewayNode(udi_interface.Node):
     def query(self):
         self.reportDrivers()
 
-    def update(self):
-        if self.gw['status'] == 'Connected':
+    def update(self, gw):
+        if gw['status'] == 'Connected':
             self.setDriver('ST', 1)
         else:
             self.setDriver('ST', 0)
@@ -147,39 +163,39 @@ class GatewayNode(udi_interface.Node):
 
 # child of gateway node
 class TapLinkNode(udi_interface.Node):
-    def __init__(self, polyglot, primary, address, name, tl):
+    def __init__(self, polyglot, primary, address, name, tl, lt):
         super(TapLinkNode, self).__init__(polyglot, primary, address, name)
         self.tl = tl
+        self.lt = lt
         self.primary = primary
         self.dev_suffix = '004B1200'
+        self.taplinker = address + '004B1200'
 
-        polyglot.subscribe(polyglot.POLL, self.poll)
-        polyglot.subscribe(polyglot.START, self.update, address)
+        polyglot.subscribe(polyglot.START, self.start, address)
 
-    def update(self):
-        if self.tl['status'] == 'Connected':
+    def start(self):
+        self.update(self.tl)
+
+    def update(self, tl):
+        if tl['status'] == 'Connected':
             self.setDriver('ST', 1, force=True)
         else:
             self.setDriver('ST', 0, force=True)
 
-        self.setDriver('BATLVL', self.tl['batteryStatus'].strip('%'), force=True)
-        # self.setDriver('GV0', self.tl['signal'].strip('%'), force=True)
-        self.setDriver('GV0', self.tl['signal'], force=True)
-        if self.tl['watering'] is not None:
+        self.setDriver('BATLVL', tl['batteryStatus'].strip('%'), force=True)
+        # self.setDriver('GV0', tl['signal'].strip('%'), force=True)
+        self.setDriver('GV0', tl['signal'], force=True)
+        if tl['watering'] is not None:
             self.setDriver('GV1', 1, force=True)
-            for key in self.tl['watering']:
+            for key in tl['watering']:
                 if key == 'remaining':
-                    self.setDriver('GV2', self.tl['watering'][key], force=True)
+                    self.setDriver('GV2', tl['watering'][key], force=True)
                 if key == 'total':
-                    self.setDriver('GV3', self.tl['watering'][key], force=True)
+                    self.setDriver('GV3', tl['watering'][key], force=True)
         else:
             self.setDriver('GV1', 0, force=True)
             self.setDriver('GV2', 0, force=True)
             self.setDriver('GV3', 0, force=True)
-
-    def poll(self, flag):
-        if flag == 'shortPoll':
-            self.update()
 
     def setOn(self, command):
         self.setDriver('ST', 1)
@@ -203,9 +219,7 @@ class TapLinkNode(udi_interface.Node):
         action = True
         eco = False
 
-        # TODO: review this, should we do linktap.LinkTap() only once on start?
-        lt = linktap.LinkTap(self.controller.username, self.controller.apiKey)
-        lt.activate_instant_mode(gateway, taplinker, action, duration, eco)
+        self.lt.activate_instant_mode(gateway, taplinker, action, duration, eco)
         self.setDriver('GV1', 1)
         self.setDriver('GV2', duration)
         self.setDriver('GV3', duration)
@@ -217,8 +231,7 @@ class TapLinkNode(udi_interface.Node):
         action = False
         eco = False
 
-        lt = linktap.LinkTap(self.controller.username, self.controller.apiKey)
-        lt.activate_instant_mode(gateway, taplinker, action, duration, eco)
+        self.lt.activate_instant_mode(gateway, taplinker, action, duration, eco)
         self.setDriver('GV1', 0)
         self.setDriver('GV2', duration)
         self.setDriver('GV3', duration)
@@ -227,26 +240,22 @@ class TapLinkNode(udi_interface.Node):
     def intervalMode(self, command):
         taplinker = command.get('address') + self.dev_suffix
         gateway = self.primary + self.dev_suffix
-        lt = linktap.LinkTap(self.controller.username, self.controller.apiKey)
-        lt.activate_interval_mode(gateway, taplinker)
+        self.lt.activate_interval_mode(gateway, taplinker)
 
     def oddEvenMode(self, command):
         taplinker = command.get('address') + self.dev_suffix
         gateway = self.primary + self.dev_suffix
-        lt = linktap.LinkTap(self.controller.username, self.controller.apiKey)
-        lt.activate_odd_even_mode(gateway, taplinker)
+        self.lt.activate_odd_even_mode(gateway, taplinker)
 
     def sevenDayMode(self, command):
         taplinker = command.get('address') + self.dev_suffix
         gateway = self.primary + self.dev_suffix
-        lt = linktap.LinkTap(self.controller.username, self.controller.apiKey)
-        lt.activate_seven_day_mode(gateway, taplinker)
+        self.lt.activate_seven_day_mode(gateway, taplinker)
 
     def monthMode(self, command):
         taplinker = command.get('address') + self.dev_suffix
         gateway = self.primary + self.dev_suffix
-        lt = linktap.LinkTap(self.controller.username, self.controller.apiKey)
-        lt.activate_month_mode(gateway, taplinker)
+        self.lt.activate_month_mode(gateway, taplinker)
 
     # "Hints See: https://github.com/UniversalDevicesInc/hints"
     # hint = [1,2,3,4]
@@ -272,6 +281,7 @@ if __name__ == "__main__":
     try:
         polyglot = udi_interface.Interface([])
         polyglot.start('1.0.1')
+
 
         Controller(polyglot)
         LOGGER.info('Started LinkTap NodeServer')
