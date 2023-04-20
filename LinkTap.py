@@ -280,7 +280,7 @@ class TapLinkNode(udi_interface.Node):
 if __name__ == "__main__":
     try:
         polyglot = udi_interface.Interface([])
-        polyglot.start('1.0.1')
+        polyglot.start('1.0.2')
 
 
         Controller(polyglot)
