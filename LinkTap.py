@@ -61,17 +61,6 @@ class Controller(object):
                         tl_address = tl['taplinkerId'][0:8].lower()
                         self.poly.getNode(tl_address).update(tl)
 
-    # TODO: : move into each node?
-    def longPoll(self):
-        if self.ready:
-            #if self.get_link_tap_devices():
-            #    self.update()
-            #else:
-            #    LOGGER.info("LinkTap Devices API returned None")
-        else:
-            pass
-
-
     def discover_retry(self):
         retry_count = str(self.retry_count)
         if self.retry_count <= 3000:
