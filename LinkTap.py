@@ -59,7 +59,8 @@ class Controller(object):
                     for tl in ctl['taplinker']:
                         tl_name = tl['taplinkerName']
                         tl_address = tl['taplinkerId'][0:8].lower()
-                        self.poly.getNode(tl_address).update(tl)
+                        ws = self.lt.get_watering_status(tl['taplinkerId'])
+                        self.poly.getNode(tl_address).update(tl, ws)
 
     def discover_retry(self):
         retry_count = str(self.retry_count)
@@ -81,7 +82,8 @@ class Controller(object):
                 for tl in ctl['taplinker']:
                     tl_name = tl['taplinkerName']
                     tl_address = tl['taplinkerId'][0:8].lower()
-                    self.poly.addNode(TapLinkNode(self.poly, gw_address, tl_address, tl_name, tl, self.lt))
+                    ws = self.lt.get_watering_status(tl['taplinkerId'])
+                    self.poly.addNode(TapLinkNode(self.poly, gw_address, tl_address, tl_name, tl, self.lt, ws))
                     time.sleep(2)
             self.ready = True
         else:
@@ -152,10 +154,11 @@ class GatewayNode(udi_interface.Node):
 
 # child of gateway node
 class TapLinkNode(udi_interface.Node):
-    def __init__(self, polyglot, primary, address, name, tl, lt):
+    def __init__(self, polyglot, primary, address, name, tl, lt, ws):
         super(TapLinkNode, self).__init__(polyglot, primary, address, name)
         self.tl = tl
         self.lt = lt
+        self.ws = ws
         self.primary = primary
         self.dev_suffix = '004B1200'
         self.taplinker = address + '004B1200'
@@ -164,29 +167,34 @@ class TapLinkNode(udi_interface.Node):
         polyglot.subscribe(polyglot.START, self.start, address)
 
     def start(self):
-        self.update(self.tl)
+        self.update(self.tl, self.ws)
         self.force = False
 
-    def update(self, tl):
+    def update(self, tl, ws):
         if tl['status'] == 'Connected':
             self.setDriver('ST', 1, force=True)
         else:
             self.setDriver('ST', 0, force=True)
 
         self.setDriver('BATLVL', tl['batteryStatus'].strip('%'), force=self.force)
-        # self.setDriver('GV0', tl['signal'].strip('%'), force=self.force)
         self.setDriver('GV0', tl['signal'], force=self.force)
-        if tl['watering'] is not None:
-            self.setDriver('GV1', 1, force=self.force)
-            for key in tl['watering']:
-                if key == 'remaining':
-                    self.setDriver('GV2', tl['watering'][key], force=self.force)
-                if key == 'total':
-                    self.setDriver('GV3', tl['watering'][key], force=self.force)
+
+
+        if ws['status'] is not None:
+            if ws['status']['onDuration']:
+                self.setDriver('GV1', 1)
+                self.setDriver('GV2', ws['status']['onDuration'])
+            if ws['status']['total']:
+                self.setDriver('GV3', ws['status']['total'])
+                watering_total = int(ws['status']['total'])
+                watering_duration = int(ws['status']['onDuration'])
+                watering_elapsed = watering_total - watering_duration
+                self.setDriver('GV4', watering_elapsed)
         else:
-            self.setDriver('GV1', 0, force=True)
-            self.setDriver('GV2', 0, force=True)
-            self.setDriver('GV3', 0, force=True)
+            self.setDriver('GV1', 0, force=self.force)
+            self.setDriver('GV2', 0, force=self.force)
+            self.setDriver('GV3', 0, force=self.force)
+            self.setDriver('GV4', 0, force=self.force)
 
     def setOn(self, command):
         self.setDriver('ST', 1)
