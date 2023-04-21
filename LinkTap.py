@@ -159,11 +159,13 @@ class TapLinkNode(udi_interface.Node):
         self.primary = primary
         self.dev_suffix = '004B1200'
         self.taplinker = address + '004B1200'
+        self.force = True
 
         polyglot.subscribe(polyglot.START, self.start, address)
 
     def start(self):
         self.update(self.tl)
+        self.force = False
 
     def update(self, tl):
         if tl['status'] == 'Connected':
@@ -171,16 +173,16 @@ class TapLinkNode(udi_interface.Node):
         else:
             self.setDriver('ST', 0, force=True)
 
-        self.setDriver('BATLVL', tl['batteryStatus'].strip('%'), force=True)
-        # self.setDriver('GV0', tl['signal'].strip('%'), force=True)
-        self.setDriver('GV0', tl['signal'], force=True)
+        self.setDriver('BATLVL', tl['batteryStatus'].strip('%'), force=self.force)
+        # self.setDriver('GV0', tl['signal'].strip('%'), force=self.force)
+        self.setDriver('GV0', tl['signal'], force=self.force)
         if tl['watering'] is not None:
-            self.setDriver('GV1', 1, force=True)
+            self.setDriver('GV1', 1, force=self.force)
             for key in tl['watering']:
                 if key == 'remaining':
-                    self.setDriver('GV2', tl['watering'][key], force=True)
+                    self.setDriver('GV2', tl['watering'][key], force=self.force)
                 if key == 'total':
-                    self.setDriver('GV3', tl['watering'][key], force=True)
+                    self.setDriver('GV3', tl['watering'][key], force=self.force)
         else:
             self.setDriver('GV1', 0, force=True)
             self.setDriver('GV2', 0, force=True)
