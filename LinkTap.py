@@ -266,7 +266,7 @@ class TapLinkNode(udi_interface.Node):
         {'driver': 'GV2', 'value': 0, 'uom': 44},  # Remaining
         {'driver': 'GV3', 'value': 0, 'uom': 44},  # Total
         {'driver': 'GV4', 'value': 0, 'uom': 44},  # Elapsed
-        {'driver': 'GV5', 'value': 0, 'uom': 44},  # Instant On Minutes
+        #{'driver': 'GV5', 'value': 0, 'uom': 44},  # Instant On Minutes
     ]
 
     id = 'taplinker'
