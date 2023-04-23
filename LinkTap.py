@@ -58,7 +58,7 @@ class Controller(object):
                     tl_name = tl['taplinkerName']
                     tl_address = tl['taplinkerId'][0:8].lower()
                     ws = self.lt.get_watering_status(tl['taplinkerId'])
-                    LOGGER.info('Watering status: {}'.format(ws))
+                    LOGGER.info('Watering status of {}: {}'.format(tl_name, ws))
                     self.poly.getNode(tl_address).update(tl, ws)
 
         if flag == 'longPoll':
@@ -90,6 +90,7 @@ class Controller(object):
                     tl_name = tl['taplinkerName']
                     tl_address = tl['taplinkerId'][0:8].lower()
                     ws = self.lt.get_watering_status(tl['taplinkerId'])
+                    LOGGER.info('Watering status of {}: {}'.format(tl_name, ws))
                     self.poly.addNode(TapLinkNode(self.poly, gw_address, tl_address, tl_name, tl, self.lt, ws))
                     time.sleep(2)
             self.ready = True
