@@ -188,22 +188,25 @@ class TapLinkNode(udi_interface.Node):
         self.setDriver('GV0', tl['signal'], force=self.force)
 
 
-        if ws['status'] is not None:
-            LOGGER.debug('Watering status: {}'.format(ws))
-            if ws['status']['onDuration']:
-                self.setDriver('GV1', 1)
-                self.setDriver('GV2', ws['status']['onDuration'])
-            if ws['status']['total']:
-                self.setDriver('GV3', ws['status']['total'])
-                watering_total = int(ws['status']['total'])
-                watering_duration = int(ws['status']['onDuration'])
-                watering_elapsed = watering_total - watering_duration
-                self.setDriver('GV4', watering_elapsed)
-        else:
-            self.setDriver('GV1', 0, force=self.force)
-            self.setDriver('GV2', 0, force=self.force)
-            self.setDriver('GV3', 0, force=self.force)
-            self.setDriver('GV4', 0, force=self.force)
+        try:
+            if ws['status'] is not None:
+                LOGGER.debug('Watering status: {}'.format(ws))
+                if ws['status']['onDuration']:
+                    self.setDriver('GV1', 1)
+                    self.setDriver('GV2', ws['status']['onDuration'])
+                if ws['status']['total']:
+                    self.setDriver('GV3', ws['status']['total'])
+                    watering_total = int(ws['status']['total'])
+                    watering_duration = int(ws['status']['onDuration'])
+                    watering_elapsed = watering_total - watering_duration
+                    self.setDriver('GV4', watering_elapsed)
+            else:
+                self.setDriver('GV1', 0, force=self.force)
+                self.setDriver('GV2', 0, force=self.force)
+                self.setDriver('GV3', 0, force=self.force)
+                self.setDriver('GV4', 0, force=self.force)
+        except e as Exception:
+            LOGGER.error('Error in watering status for {}: {}'.format(self.tl['name'], e))
 
     def setOn(self, command):
         self.setDriver('ST', 1)
