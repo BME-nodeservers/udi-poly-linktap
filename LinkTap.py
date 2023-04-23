@@ -50,17 +50,24 @@ class Controller(object):
             return
 
         if flag == 'shortPoll':
+            for ctl in self.data['devices']:
+                gw_name = ctl['name']
+                gw_address = ctl['gatewayId'][0:8].lower()
+                for tl in ctl['taplinker']:
+                    LOGGER.info('Calling get_watering_statuss....')
+                    tl_name = tl['taplinkerName']
+                    tl_address = tl['taplinkerId'][0:8].lower()
+                    ws = self.lt.get_watering_status(tl['taplinkerId'])
+                    LOGGER.info('Watering status: {}'.format(ws))
+                    self.poly.getNode(tl_address).update(tl, ws)
+
+        if flag == 'longPoll':
             LOGGER.info('Calling get_link_tap_devices....')
             if self.get_link_tap_devices(self.lt):
                 for ctl in self.data['devices']:
                     gw_name = ctl['name']
                     gw_address = ctl['gatewayId'][0:8].lower()
                     self.poly.getNode(gw_address).update(ctl)
-                    for tl in ctl['taplinker']:
-                        tl_name = tl['taplinkerName']
-                        tl_address = tl['taplinkerId'][0:8].lower()
-                        ws = self.lt.get_watering_status(tl['taplinkerId'])
-                        self.poly.getNode(tl_address).update(tl, ws)
 
     def discover_retry(self):
         retry_count = str(self.retry_count)
@@ -181,6 +188,7 @@ class TapLinkNode(udi_interface.Node):
 
 
         if ws['status'] is not None:
+            LOGGER.debug('Watering status: {}'.format(ws))
             if ws['status']['onDuration']:
                 self.setDriver('GV1', 1)
                 self.setDriver('GV2', ws['status']['onDuration'])
