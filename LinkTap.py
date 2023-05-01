@@ -54,7 +54,7 @@ class Controller(object):
                 gw_name = ctl['name']
                 gw_address = ctl['gatewayId'][0:8].lower()
                 for tl in ctl['taplinker']:
-                    LOGGER.info('Calling get_watering_statuss....')
+                    LOGGER.info('Calling get_watering_status for {}'.format(tl['taplinkerId']))
                     tl_name = tl['taplinkerName']
                     tl_address = tl['taplinkerId'][0:8].lower()
                     ws = self.lt.get_watering_status(tl['taplinkerId'])
@@ -196,6 +196,8 @@ class TapLinkNode(udi_interface.Node):
                     self.setDriver('GV2', ws['status']['onDuration'])
                 if ws['status']['total']:
                     self.setDriver('GV3', ws['status']['total'])
+
+                    # calculate elapsed
                     watering_total = int(ws['status']['total'])
                     watering_duration = int(ws['status']['onDuration'])
                     watering_elapsed = watering_total - watering_duration
